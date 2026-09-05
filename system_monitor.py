@@ -1,4 +1,6 @@
 import psutil
+import platform
+import socket
 
 
 def get_system_metrics():
@@ -7,3 +9,11 @@ def get_system_metrics():
     disk_usage = psutil.disk_usage("/").percent
 
     return cpu_usage, memory_usage, disk_usage
+
+
+def get_system_info():
+    operating_system = platform.system()
+    os_version = platform.release()
+    hostname = socket.gethostname()
+
+    return operating_system, os_version, hostname
