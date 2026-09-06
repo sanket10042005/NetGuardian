@@ -1,7 +1,12 @@
+
+WARNING_THRESHOLD = 70
+CRITICAL_THRESHOLD = 90
+
+
 def check_health(value):
-    if value < 70:
+    if value < WARNING_THRESHOLD:
         return "HEALTHY"
-    elif value <= 90:
+    elif value <= CRITICAL_THRESHOLD:
         return "WARNING"
     else:
         return "CRITICAL"

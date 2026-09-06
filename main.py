@@ -1,64 +1,81 @@
+import time
+from datetime import datetime
+
 from system_monitor import get_system_metrics, get_system_info
 from health import check_health, get_overall_health
 
 
-def display_report(
-    operating_system,
-    os_version,
-    hostname,
-    cpu_usage,
-    memory_usage,
-    disk_usage,
-    cpu_status,
-    memory_status,
-    disk_status,
-    overall_status
-):
+def display_report(system_info, metrics):
+    print()
     print("========== NetGuardian ==========")
 
+    print("Monitoring Time:", system_info["timestamp"])
+
+    print()
     print("System Information")
-    print("OS:", operating_system)
-    print("Kernel:", os_version)
-    print("Hostname:", hostname)
+    print("OS:", system_info["os"])
+    print("Kernel:", system_info["kernel"])
+    print("Hostname:", system_info["hostname"])
 
     print()
     print("Resource Usage")
-    print("CPU Usage:", cpu_usage, "%", "-", cpu_status)
-    print("Memory Usage:", memory_usage, "%", "-", memory_status)
-    print("Disk Usage:", disk_usage, "%", "-", disk_status)
+
+    for name, data in metrics.items():
+        print(
+            f"{name.capitalize():<10}: "
+            f"{data['value']}% - {data['status']}"
+        )
+
+    statuses = [data["status"] for data in metrics.values()]
+    overall_status = get_overall_health(statuses)
 
     print()
     print("Overall System Health:", overall_status)
-
     print("=================================")
 
 
+def collect_and_display():
+    cpu_usage, memory_usage, disk_usage = get_system_metrics()
 
-cpu_usage, memory_usage, disk_usage = get_system_metrics()
+    operating_system, os_version, hostname = get_system_info()
+
+    metrics = {
+        "cpu": {
+            "value": cpu_usage,
+            "status": check_health(cpu_usage)
+        },
+        "memory": {
+            "value": memory_usage,
+            "status": check_health(memory_usage)
+        },
+        "disk": {
+            "value": disk_usage,
+            "status": check_health(disk_usage)
+        }
+    }
+
+    system_info = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "os": operating_system,
+        "kernel": os_version,
+        "hostname": hostname
+    }
+
+    display_report(system_info, metrics)
 
 
-operating_system, os_version, hostname = get_system_info()
+print("Starting NetGuardian monitoring...")
+print("Press Ctrl+C to stop monitoring.")
 
+try:
+    while True:
+        collect_and_display()
 
-cpu_status = check_health(cpu_usage)
-memory_status = check_health(memory_usage)
-disk_status = check_health(disk_usage)
+        print()
+        print("Next check in 5 seconds...")
+        time.sleep(5)
 
-
-overall_status = get_overall_health(
-    [cpu_status, memory_status, disk_status]
-)
-
-
-display_report(
-    operating_system,
-    os_version,
-    hostname,
-    cpu_usage,
-    memory_usage,
-    disk_usage,
-    cpu_status,
-    memory_status,
-    disk_status,
-    overall_status
-)
+except KeyboardInterrupt:
+    print()
+    print("Stopping NetGuardian...")
+    print("Monitoring stopped safely.")
