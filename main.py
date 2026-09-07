@@ -3,9 +3,14 @@ from datetime import datetime
 
 from system_monitor import get_system_metrics, get_system_info
 from health import check_health, get_overall_health
+from process_monitor import (
+    get_processes,
+    get_top_cpu_processes,
+    get_top_memory_processes
+)
 
 
-def display_report(system_info, metrics):
+def display_system_report(system_info, metrics):
     print()
     print("========== NetGuardian ==========")
 
@@ -34,11 +39,29 @@ def display_report(system_info, metrics):
     print("=================================")
 
 
+def display_processes(processes, title, limit=5):
+    print()
+    print(f"========== {title} ==========")
+
+    for process in processes[:limit]:
+        print(
+            "PID:", process["pid"],
+            "| Name:", process["name"],
+            "| CPU:", process["cpu"], "%",
+            "| Memory:", round(process["memory"], 2), "%"
+        )
+
+    print("========================================")
+
+
 def collect_and_display():
+    
     cpu_usage, memory_usage, disk_usage = get_system_metrics()
 
+   
     operating_system, os_version, hostname = get_system_info()
 
+    
     metrics = {
         "cpu": {
             "value": cpu_usage,
@@ -54,6 +77,7 @@ def collect_and_display():
         }
     }
 
+    
     system_info = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "os": operating_system,
@@ -61,7 +85,26 @@ def collect_and_display():
         "hostname": hostname
     }
 
-    display_report(system_info, metrics)
+   
+    display_system_report(system_info, metrics)
+
+    
+    processes = get_processes()
+
+    
+    top_cpu = get_top_cpu_processes(processes)
+    top_memory = get_top_memory_processes(processes)
+
+    
+    display_processes(
+        top_cpu,
+        "Top CPU Processes"
+    )
+
+    display_processes(
+        top_memory,
+        "Top Memory Processes"
+    )
 
 
 print("Starting NetGuardian monitoring...")
