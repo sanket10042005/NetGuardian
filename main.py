@@ -1,8 +1,8 @@
 import time
-
 from datetime import datetime
 
 from health import check_health, get_overall_health
+from dns_monitor import resolve_hostname
 from network_monitor import ping_host
 from process_monitor import (
     get_processes,
@@ -100,6 +100,23 @@ def display_processes(processes, title):
     print("========================================")
 
 
+def display_dns_diagnostic():
+    result = resolve_hostname("google.com")
+
+    print()
+    print("========== DNS Diagnostics ==========")
+    print("Hostname:", result["hostname"])
+
+    if result["resolved"]:
+        print("Status: RESOLVED")
+        print("IP Address:", result["ip_address"])
+    else:
+        print("Status: NOT RESOLVED")
+        print("IP Address: Unknown")
+
+    print("======================================")
+
+
 def display_network_diagnostic():
     result = ping_host("8.8.8.8")
 
@@ -143,6 +160,8 @@ def collect_and_display():
         top_memory,
         "Top Memory Processes"
     )
+
+    display_dns_diagnostic()
 
     display_network_diagnostic()
 
