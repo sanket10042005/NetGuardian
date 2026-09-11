@@ -4,6 +4,7 @@ from datetime import datetime
 from health import check_health, get_overall_health
 from dns_monitor import resolve_hostname
 from network_monitor import ping_host
+from port_monitor import check_port
 from process_monitor import (
     get_processes,
     get_top_cpu_processes,
@@ -136,6 +137,23 @@ def display_network_diagnostic():
     print("==========================================")
 
 
+def display_port_diagnostic():
+    result = check_port("8.8.8.8", 53)
+
+    print()
+    print("========== Port Diagnostics ==========")
+    print("Target:", result["host"])
+    print("Port:", result["port"])
+    print("Protocol: TCP")
+
+    if result["open"]:
+        print("Status: OPEN")
+    else:
+        print("Status: CLOSED")
+
+    print("======================================")
+
+
 def collect_and_display():
     display_system_report()
 
@@ -164,6 +182,8 @@ def collect_and_display():
     display_dns_diagnostic()
 
     display_network_diagnostic()
+
+    display_port_diagnostic()
 
 
 print("Starting NetGuardian monitoring...")
