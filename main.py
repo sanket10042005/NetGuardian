@@ -5,6 +5,7 @@ from health import check_health, get_overall_health
 from dns_monitor import resolve_hostname
 from network_monitor import ping_host
 from port_monitor import check_port
+from interface_monitor import get_network_interfaces
 from process_monitor import (
     get_processes,
     get_top_cpu_processes,
@@ -101,6 +102,30 @@ def display_processes(processes, title):
     print("========================================")
 
 
+def display_network_interfaces():
+    interfaces = get_network_interfaces()
+
+    print()
+    print("========== Network Interfaces ==========")
+
+    for interface in interfaces:
+        print()
+        print("Interface:", interface["name"])
+
+        if interface["is_up"]:
+            print("Status: UP")
+        else:
+            print("Status: DOWN")
+
+        print("IP Address:", interface["ip_address"])
+        print("Netmask:", interface["netmask"])
+        print("MAC Address:", interface["mac_address"])
+        print("MTU:", interface["mtu"])
+
+    print()
+    print("=========================================")
+
+
 def display_dns_diagnostic():
     result = resolve_hostname("google.com")
 
@@ -156,6 +181,8 @@ def display_port_diagnostic():
 
 def collect_and_display():
     display_system_report()
+
+    display_network_interfaces()
 
     processes = get_processes()
 
