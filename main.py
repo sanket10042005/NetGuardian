@@ -3,6 +3,7 @@ from datetime import datetime
 
 from health import check_health, get_overall_health
 from dns_monitor import resolve_hostname
+from gateway_monitor import check_gateway
 from network_monitor import ping_host
 from port_monitor import check_port
 from interface_monitor import get_network_interfaces
@@ -87,21 +88,6 @@ def display_system_report():
     print("=================================")
 
 
-def display_processes(processes, title):
-    print()
-    print(f"========== {title} ==========")
-
-    for process in processes:
-        print(
-            "PID:", process["pid"],
-            "| Name:", process["name"],
-            "| CPU:", process["cpu"], "%",
-            "| Memory:", round(process["memory"], 2), "%"
-        )
-
-    print("========================================")
-
-
 def display_network_interfaces():
     interfaces = get_network_interfaces()
 
@@ -124,6 +110,41 @@ def display_network_interfaces():
 
     print()
     print("=========================================")
+
+
+def display_processes(processes, title):
+    print()
+    print(f"========== {title} ==========")
+
+    for process in processes:
+        print(
+            "PID:", process["pid"],
+            "| Name:", process["name"],
+            "| CPU:", process["cpu"], "%",
+            "| Memory:", round(process["memory"], 2), "%"
+        )
+
+    print("========================================")
+
+
+def display_gateway_diagnostic():
+    result = check_gateway()
+
+    print()
+    print("========== Gateway Diagnostics ==========")
+
+    print("Gateway:", result["gateway"])
+
+    if result["reachable"]:
+        print("Status: REACHABLE")
+        print("Packet Loss:", result["packet_loss"], "%")
+        print("Average Latency:", result["latency"], "ms")
+    else:
+        print("Status: UNREACHABLE")
+        print("Packet Loss: Unknown")
+        print("Average Latency: Unknown")
+
+    print("==========================================")
 
 
 def display_dns_diagnostic():
@@ -183,6 +204,8 @@ def collect_and_display():
     display_system_report()
 
     display_network_interfaces()
+
+    display_gateway_diagnostic()
 
     processes = get_processes()
 
