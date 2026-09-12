@@ -7,6 +7,7 @@ from gateway_monitor import check_gateway
 from network_monitor import ping_host
 from port_monitor import check_port
 from interface_monitor import get_network_interfaces
+from route_monitor import get_routing_table, parse_routing_table
 from process_monitor import (
     get_processes,
     get_top_cpu_processes,
@@ -112,6 +113,29 @@ def display_network_interfaces():
     print("=========================================")
 
 
+def display_routing_table():
+    output = get_routing_table()
+    routes = parse_routing_table(output)
+
+    print()
+    print("========== Routing Table ==========")
+
+    if not routes:
+        print("No routing information available.")
+    else:
+        for route in routes:
+            print()
+            print("Destination:", route["destination"])
+            print("Gateway:", route["gateway"])
+            print("Interface:", route["interface"])
+            print("Source IP:", route["source_ip"])
+            print("Protocol:", route["protocol"])
+            print("Metric:", route["metric"])
+
+    print()
+    print("===================================")
+
+
 def display_processes(processes, title):
     print()
     print(f"========== {title} ==========")
@@ -204,6 +228,8 @@ def collect_and_display():
     display_system_report()
 
     display_network_interfaces()
+
+    display_routing_table()
 
     display_gateway_diagnostic()
 
