@@ -1,4 +1,3 @@
-
 import time
 from datetime import datetime
 
@@ -43,6 +42,8 @@ from system_monitor import (
 )
 
 from security.port_exposure import analyze_services
+
+from security.firewall_monitor import discover_firewalls
 
 
 def display_system_report():
@@ -432,6 +433,27 @@ def display_security_diagnostic():
     print("==========================================")
 
 
+def display_firewall_diagnostic():
+    firewalls = discover_firewalls()
+
+    print()
+    print("========== Firewall Diagnostics ==========")
+
+    for firewall_name, firewall in firewalls.items():
+
+        print()
+        print("Firewall:", firewall_name)
+
+        if firewall["available"]:
+            print("Available: YES")
+        else:
+            print("Available: NO")
+
+        print("Status:", firewall["status"])
+
+    print("==========================================")
+
+
 def collect_and_display():
     display_system_report()
 
@@ -474,6 +496,8 @@ def collect_and_display():
     display_port_diagnostic()
 
     display_security_diagnostic()
+
+    display_firewall_diagnostic()
 
 
 def main():
