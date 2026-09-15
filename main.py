@@ -1,3 +1,4 @@
+
 import time
 from datetime import datetime
 
@@ -40,6 +41,8 @@ from system_monitor import (
     get_system_metrics,
     get_system_info
 )
+
+from security.port_exposure import analyze_services
 
 
 def display_system_report():
@@ -373,7 +376,10 @@ def display_port_diagnostic():
             if "%" in test_address:
                 test_address = test_address.split("%", 1)[0]
 
-            if test_address.startswith("[") and test_address.endswith("]"):
+            if (
+                test_address.startswith("[")
+                and test_address.endswith("]")
+            ):
                 test_address = test_address[1:-1]
 
             if test_address == "0.0.0.0":
@@ -400,6 +406,30 @@ def display_port_diagnostic():
                 print("Status: CLOSED")
 
     print("======================================")
+
+
+def display_security_diagnostic():
+    services = discover_tcp_services()
+
+    findings = analyze_services(services)
+
+    print()
+    print("========== Security Diagnostics ==========")
+
+    if not findings:
+        print("No TCP services available for security analysis.")
+
+    else:
+        for finding in findings:
+            print()
+            print("Address:", finding["address"])
+            print("Port:", finding["port"])
+            print("Protocol:", finding["protocol"])
+            print("Severity:", finding["severity"])
+            print("Exposure:", finding["exposure"])
+            print("Finding:", finding["message"])
+
+    print("==========================================")
 
 
 def collect_and_display():
@@ -442,6 +472,8 @@ def collect_and_display():
     display_service_discovery()
 
     display_port_diagnostic()
+
+    display_security_diagnostic()
 
 
 def main():
