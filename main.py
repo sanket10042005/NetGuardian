@@ -35,15 +35,19 @@ from process_monitor import (
     get_top_cpu_processes,
     get_top_memory_processes
 )
-
 from system_monitor import (
     get_system_metrics,
     get_system_info
 )
-
 from security.port_exposure import analyze_services
 
-from security.firewall_monitor import discover_firewalls
+from security.security_assessment import (
+    assess_service_security
+)
+
+from security.firewall_monitor import (
+    discover_firewalls
+)
 
 
 def display_system_report():
@@ -412,44 +416,72 @@ def display_port_diagnostic():
 def display_security_diagnostic():
     services = discover_tcp_services()
 
+    firewall_data = discover_firewalls()
+
     findings = analyze_services(services)
 
     print()
-    print("========== Security Diagnostics ==========")
+    print("========== Security Assessment ==========")
 
     if not findings:
         print("No TCP services available for security analysis.")
 
     else:
-        for finding in findings:
-            print()
-            print("Address:", finding["address"])
-            print("Port:", finding["port"])
-            print("Protocol:", finding["protocol"])
-            print("Severity:", finding["severity"])
-            print("Exposure:", finding["exposure"])
-            print("Finding:", finding["message"])
+        firewall_statuses = []
 
-    print("==========================================")
+        for firewall in firewall_data.values():
 
+            if firewall["status"] == "ACTIVE":
+                firewall_statuses.append("ACTIVE")
 
-def display_firewall_diagnostic():
-    firewalls = discover_firewalls()
+            elif firewall["status"] == "RULES_PRESENT":
+                firewall_statuses.append("ACTIVE")
 
-    print()
-    print("========== Firewall Diagnostics ==========")
+        if firewall_statuses:
+            firewall_status = "ACTIVE"
 
-    for firewall_name, firewall in firewalls.items():
+        elif any(
+            firewall["status"] == "ACCESS_DENIED"
+            for firewall in firewall_data.values()
+        ):
+            firewall_status = "ACCESS_DENIED"
+
+        elif any(
+            firewall["status"] == "INACTIVE"
+            for firewall in firewall_data.values()
+        ):
+            firewall_status = "INACTIVE"
+
+        elif any(
+            firewall["status"] == "NO_RULES"
+            for firewall in firewall_data.values()
+        ):
+            firewall_status = "NO_RULES"
+
+        else:
+            firewall_status = "UNKNOWN"
 
         print()
-        print("Firewall:", firewall_name)
+        print("Firewall Assessment:", firewall_status)
 
-        if firewall["available"]:
-            print("Available: YES")
-        else:
-            print("Available: NO")
+        for finding in findings:
 
-        print("Status:", firewall["status"])
+            assessment = assess_service_security(
+                finding,
+                firewall_status
+            )
+
+            print()
+            print("Protocol:", assessment["protocol"])
+            print("Address:", assessment["address"])
+            print("Port:", assessment["port"])
+            print("Exposure:", assessment["exposure"])
+            print(
+                "Firewall Status:",
+                assessment["firewall_status"]
+            )
+            print("Severity:", assessment["severity"])
+            print("Finding:", assessment["message"])
 
     print("==========================================")
 
@@ -496,8 +528,6 @@ def collect_and_display():
     display_port_diagnostic()
 
     display_security_diagnostic()
-
-    display_firewall_diagnostic()
 
 
 def main():
