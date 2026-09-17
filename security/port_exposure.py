@@ -1,69 +1,96 @@
+import ipaddress
+
+
+def normalize_address(address):
+    """
+    Normalize an address before security analysis.
+
+    Removes IPv6 zone identifiers and brackets.
+    """
+
+    address = address.strip()
+
+    # Remove IPv6 zone identifier.
+    if "%" in address:
+        address = address.split("%", 1)[0]
+
+    # Remove IPv6 brackets.
+    if (
+        address.startswith("[")
+        and address.endswith("]")
+    ):
+        address = address[1:-1]
+
+    return address
+
+
+def classify_exposure(address):
+    """
+    Classify network exposure based on the IP address.
+
+    Returns:
+        LOCAL
+        NETWORK
+        SPECIFIC_INTERFACE
+        UNKNOWN
+    """
+
+    normalized_address = normalize_address(address)
+
+    try:
+        ip = ipaddress.ip_address(normalized_address)
+
+    except ValueError:
+        return "UNKNOWN"
+
+    if ip.is_loopback:
+        return "LOCAL"
+
+    if ip.is_unspecified:
+        return "NETWORK"
+
+    return "SPECIFIC_INTERFACE"
+
 
 def analyze_service(service):
     address = service["address"]
     port = service["port"]
     protocol = service["protocol"]
 
+    exposure = classify_exposure(address)
+
     finding = {
         "protocol": protocol,
         "address": address,
         "port": port,
         "severity": "INFO",
-        "exposure": "LOCAL",
+        "exposure": exposure,
         "message": ""
     }
 
-    normalized_address = address
-
-    # Remove IPv6 zone identifier if present.
-    if "%" in normalized_address:
-        normalized_address = normalized_address.split("%", 1)[0]
-
-    # Remove IPv6 brackets.
-    if (
-        normalized_address.startswith("[")
-        and normalized_address.endswith("]")
-    ):
-        normalized_address = normalized_address[1:-1]
-
-    # IPv4 wildcard address.
-    if normalized_address == "0.0.0.0":
+    if exposure == "NETWORK":
         finding["severity"] = "WARNING"
-        finding["exposure"] = "NETWORK"
         finding["message"] = (
-            "Service is listening on all IPv4 interfaces."
+            "Service is listening on a network-wide address."
         )
 
-    # IPv6 wildcard address.
-    elif normalized_address == "::":
-        finding["severity"] = "WARNING"
-        finding["exposure"] = "NETWORK"
-        finding["message"] = (
-            "Service is listening on all IPv6 interfaces."
-        )
-
-    # IPv4 localhost.
-    elif normalized_address == "127.0.0.1":
+    elif exposure == "LOCAL":
         finding["severity"] = "INFO"
-        finding["exposure"] = "LOCAL"
         finding["message"] = (
-            "Service is listening only on IPv4 localhost."
+            "Service is listening only on a local loopback address."
         )
 
-    # IPv6 localhost.
-    elif normalized_address == "::1":
-        finding["severity"] = "INFO"
-        finding["exposure"] = "LOCAL"
+    elif exposure == "SPECIFIC_INTERFACE":
+        finding["severity"] = "REVIEW"
         finding["message"] = (
-            "Service is listening only on IPv6 localhost."
+            "Service is listening on a specific network address. "
+            "Review whether this exposure is required."
         )
 
-    # Other specific addresses.
     else:
         finding["severity"] = "REVIEW"
-        finding["exposure"] = "SPECIFIC_INTERFACE"
         finding["message"] = (
-            "Service is listening on a specific network address."
+            "Service address could not be classified."
         )
 
     return finding
