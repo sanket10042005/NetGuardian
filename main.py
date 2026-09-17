@@ -35,10 +35,12 @@ from process_monitor import (
     get_top_cpu_processes,
     get_top_memory_processes
 )
+
 from system_monitor import (
     get_system_metrics,
     get_system_info
 )
+
 from security.port_exposure import analyze_services
 
 from security.security_assessment import (
@@ -339,9 +341,7 @@ def display_network_diagnostic():
     print("==========================================")
 
 
-def display_service_discovery():
-    services = discover_tcp_services()
-
+def display_service_discovery(services):
     print()
     print("========== Service Discovery ==========")
 
@@ -360,9 +360,7 @@ def display_service_discovery():
     print("========================================")
 
 
-def display_port_diagnostic():
-    services = discover_tcp_services()
-
+def display_port_diagnostic(services):
     print()
     print("========== Port Diagnostics ==========")
 
@@ -413,9 +411,7 @@ def display_port_diagnostic():
     print("======================================")
 
 
-def display_security_diagnostic():
-    services = discover_tcp_services()
-
+def display_security_diagnostic(services):
     firewall_data = discover_firewalls()
 
     findings = analyze_services(services)
@@ -523,11 +519,14 @@ def collect_and_display():
 
     display_network_diagnostic()
 
-    display_service_discovery()
+    # Discover TCP services only once.
+    services = discover_tcp_services()
 
-    display_port_diagnostic()
+    display_service_discovery(services)
 
-    display_security_diagnostic()
+    display_port_diagnostic(services)
+
+    display_security_diagnostic(services)
 
 
 def main():
