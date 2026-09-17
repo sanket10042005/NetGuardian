@@ -1,6 +1,10 @@
 
-from discovery.services import discover_tcp_services
-
+from discovery.services import (
+    discover_tcp_services,
+    normalize_address
+)
+def test_normalize_wildcard_address():
+    assert normalize_address("*") == "0.0.0.0"
 
 def test_discover_tcp_services_returns_list():
     services = discover_tcp_services()

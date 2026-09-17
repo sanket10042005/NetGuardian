@@ -1,6 +1,22 @@
 import subprocess
 
 
+def normalize_address(address):
+    """
+    Normalize an address reported by ss.
+
+    Converts wildcard '*' into a normalized wildcard
+    representation so security analysis can identify it.
+    """
+
+    address = address.strip()
+
+    if address == "*":
+        return "0.0.0.0"
+
+    return address
+
+
 def discover_tcp_services():
     try:
         result = subprocess.run(
@@ -34,6 +50,8 @@ def discover_tcp_services():
             if not port.isdigit():
                 continue
 
+            address = normalize_address(address)
+
             service = {
                 "protocol": "TCP",
                 "address": address,
@@ -45,7 +63,10 @@ def discover_tcp_services():
 
         return services
 
-    except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+    except (
+        subprocess.TimeoutExpired,
+        subprocess.CalledProcessError
+    ):
         return []
 
     except OSError:
