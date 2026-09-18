@@ -1,4 +1,3 @@
-
 from security.security_assessment import assess_service_security
 
 
@@ -49,6 +48,41 @@ def test_network_service_with_access_denied():
     )
 
     assert result["severity"] == "REVIEW"
+    assert "elevated privileges" in result["message"]
+
+
+def test_network_service_with_error():
+    service_finding = {
+        "protocol": "TCP",
+        "address": "0.0.0.0",
+        "port": 22,
+        "exposure": "NETWORK"
+    }
+
+    result = assess_service_security(
+        service_finding,
+        "ERROR"
+    )
+
+    assert result["severity"] == "REVIEW"
+    assert "inspection failed" in result["message"]
+
+
+def test_network_service_with_unknown_firewall():
+    service_finding = {
+        "protocol": "TCP",
+        "address": "0.0.0.0",
+        "port": 22,
+        "exposure": "NETWORK"
+    }
+
+    result = assess_service_security(
+        service_finding,
+        "UNKNOWN"
+    )
+
+    assert result["severity"] == "REVIEW"
+    assert "firewall state is unknown" in result["message"]
 
 
 def test_local_service():
@@ -81,6 +115,23 @@ def test_specific_interface_service():
     )
 
     assert result["severity"] == "REVIEW"
+
+
+def test_unknown_exposure():
+    service_finding = {
+        "protocol": "TCP",
+        "address": "unknown",
+        "port": 8080,
+        "exposure": "UNKNOWN"
+    }
+
+    result = assess_service_security(
+        service_finding,
+        "ACCESS_DENIED"
+    )
+
+    assert result["severity"] == "REVIEW"
+    assert "could not be fully classified" in result["message"]
 
 
 def test_assessment_contains_required_information():
