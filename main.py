@@ -1,3 +1,4 @@
+import argparse
 import time
 from datetime import datetime
 
@@ -9,7 +10,7 @@ from discovery.network import discover_network_interfaces
 from discovery.dns import discover_dns_servers
 from discovery.services import discover_tcp_services
 
-from dns_monitor import resolve_hostname
+from dns_monitor import query_dns_server
 
 from gateway_monitor import (
     check_gateway,
@@ -50,6 +51,19 @@ from security.security_assessment import (
 from security.firewall_monitor import (
     discover_firewalls
 )
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        description="NetGuardian infrastructure monitoring and diagnostics"
+    )
+
+    parser.add_argument(
+        "--dns-target",
+        help="Hostname to use for DNS diagnostics"
+    )
+
+    return parser.parse_args()
 
 
 def display_system_report():
@@ -279,38 +293,64 @@ def display_processes(processes, title):
     print("========================================")
 
 
-def display_dns_diagnostic():
+def display_dns_diagnostic(dns_target):
     dns_servers = discover_dns_servers()
 
     print()
-    print("========== DNS Discovery ==========")
+    print("========== DNS Diagnostics ==========")
 
     if not dns_servers:
         print("DNS Servers: Not detected")
         print("Status: DNS CONFIGURATION NOT FOUND")
 
-    else:
-        print("DNS Servers:")
+    elif not dns_target:
+        print("Discovered DNS Servers:")
 
         for server in dns_servers:
             print(" -", server)
 
-        hostname = get_system_info()[2]
+        print()
+        print("Status: DNS TEST TARGET NOT PROVIDED")
+        print()
+        print(
+            "Use --dns-target <hostname> "
+            "to perform DNS resolution tests."
+        )
 
-        result = resolve_hostname(hostname)
+    else:
+        print("Discovered DNS Servers:")
+
+        for server in dns_servers:
+            print(" -", server)
 
         print()
-        print("Resolution Test Host:", hostname)
+        print("DNS Resolution Tests")
+        print("Test Host:", dns_target)
 
-        if result["resolved"]:
-            print("Status: RESOLVED")
-            print("IP Address:", result["ip_address"])
+        for server in dns_servers:
+            result = query_dns_server(
+                server,
+                dns_target
+            )
 
-        else:
-            print("Status: NOT RESOLVED")
-            print("IP Address: Unknown")
+            print()
+            print("DNS Server:", result["dns_server"])
+            print("Status:", result["status"])
 
-    print("==================================")
+            if result["resolved"]:
+                print("IP Address:", result["ip_address"])
+
+            else:
+                print("IP Address: Unknown")
+
+            if result["response_time_ms"] is not None:
+                print(
+                    "Response Time:",
+                    result["response_time_ms"],
+                    "ms"
+                )
+
+    print("====================================")
 
 
 def display_network_diagnostic():
@@ -482,7 +522,7 @@ def display_security_diagnostic(services):
     print("==========================================")
 
 
-def collect_and_display():
+def collect_and_display(dns_target):
     display_system_report()
 
     display_network_interfaces()
@@ -515,11 +555,10 @@ def collect_and_display():
         "Top Memory Processes"
     )
 
-    display_dns_diagnostic()
+    display_dns_diagnostic(dns_target)
 
     display_network_diagnostic()
 
-    # Discover TCP services only once.
     services = discover_tcp_services()
 
     display_service_discovery(services)
@@ -530,12 +569,17 @@ def collect_and_display():
 
 
 def main():
+    args = parse_arguments()
+
     print("Starting NetGuardian monitoring...")
     print("Press Ctrl+C to stop monitoring.")
 
+    if args.dns_target:
+        print("DNS test target:", args.dns_target)
+
     try:
         while True:
-            collect_and_display()
+            collect_and_display(args.dns_target)
 
             print()
             print(
