@@ -52,6 +52,10 @@ from security.firewall_monitor import (
     discover_firewalls
 )
 
+from diagnostics.network_diagnostics import (
+    diagnose_full_network
+)
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
@@ -61,6 +65,11 @@ def parse_arguments():
     parser.add_argument(
         "--dns-target",
         help="Hostname to use for DNS diagnostics"
+    )
+
+    parser.add_argument(
+        "--network-target",
+        help="Host to use for external network reachability diagnostics"
     )
 
     return parser.parse_args()
@@ -353,32 +362,142 @@ def display_dns_diagnostic(dns_target):
     print("====================================")
 
 
-def display_network_diagnostic():
-    gateway = get_default_gateway()
+def display_network_diagnostic(network_target):
+    gateway_result = check_gateway()
+
+    interfaces = discover_network_interfaces()
+
+    routes_output = get_routing_table()
+    routes = parse_routing_table(routes_output)
+
+    default_route = next(
+        (
+            route
+            for route in routes
+            if route["destination"] == "default"
+        ),
+        None
+    )
+
+    interface_up = False
+
+    if default_route is not None:
+        route_interface = default_route.get("interface")
+
+        interface_up = any(
+            interface["name"] == route_interface
+            and interface["is_up"]
+            for interface in interfaces
+        )
+
+    internet_result = None
+
+    if network_target:
+        internet_result = ping_host(network_target)
+
+    diagnosis = diagnose_full_network(
+        gateway_result["gateway"],
+        gateway_result["reachable"],
+        interface_up,
+        default_route,
+        (
+            internet_result["reachable"]
+            if internet_result is not None
+            else False
+        )
+    )
 
     print()
-    print("========== Network Diagnostics ==========")
+    print("========== Network Diagnostic Engine ==========")
 
-    if gateway is None:
-        print("Target: Not available")
-        print("Status: NO DEFAULT GATEWAY")
+    print()
+    print("Interface")
+
+    if default_route is None:
+        print("Interface: Not determined")
+        print("Status: UNKNOWN")
 
     else:
-        result = ping_host(gateway)
+        print("Interface:", default_route["interface"])
 
-        print("Target:", result["host"])
+        if interface_up:
+            print("Status: UP")
+        else:
+            print("Status: DOWN")
 
-        if result["reachable"]:
+    print()
+    print("Gateway")
+
+    print("Gateway:", gateway_result["gateway"])
+
+    if gateway_result["reachable"]:
+        print("Status: REACHABLE")
+        print(
+            "Packet Loss:",
+            gateway_result["packet_loss"],
+            "%"
+        )
+        print(
+            "Latency:",
+            gateway_result["latency"],
+            "ms"
+        )
+
+    else:
+        print("Status: UNREACHABLE")
+
+    print()
+    print("Default Route")
+
+    if default_route is None:
+        print("Status: NOT FOUND")
+
+    else:
+        print("Status: PRESENT")
+        print("Gateway:", default_route["gateway"])
+        print("Interface:", default_route["interface"])
+        print("Source IP:", default_route["source_ip"])
+        print("Protocol:", default_route["protocol"])
+        print("Metric:", default_route["metric"])
+
+    print()
+    print("External Connectivity")
+
+    if internet_result is None:
+        print("Status: TEST NOT PERFORMED")
+        print()
+        print(
+            "Use --network-target <host> "
+            "to perform external connectivity diagnostics."
+        )
+
+    else:
+        print("Target:", internet_result["host"])
+
+        if internet_result["reachable"]:
             print("Status: REACHABLE")
-            print("Packet Loss:", result["packet_loss"], "%")
-            print("Average Latency:", result["latency"], "ms")
+            print(
+                "Packet Loss:",
+                internet_result["packet_loss"],
+                "%"
+            )
+            print(
+                "Latency:",
+                internet_result["latency"],
+                "ms"
+            )
 
         else:
             print("Status: UNREACHABLE")
-            print("Packet Loss: Unknown")
-            print("Average Latency: Unknown")
 
-    print("==========================================")
+    print()
+    print("Final Diagnosis")
+    print("Status:", diagnosis["status"])
+    print("Severity:", diagnosis["severity"])
+    print("Finding:", diagnosis["finding"])
+
+    print()
+    print("==============================================")
 
 
 def display_service_discovery(services):
@@ -522,7 +641,10 @@ def display_security_diagnostic(services):
     print("==========================================")
 
 
-def collect_and_display(dns_target):
+def collect_and_display(
+    dns_target,
+    network_target
+):
     display_system_report()
 
     display_network_interfaces()
@@ -557,7 +679,7 @@ def collect_and_display(dns_target):
 
     display_dns_diagnostic(dns_target)
 
-    display_network_diagnostic()
+    display_network_diagnostic(network_target)
 
     services = discover_tcp_services()
 
@@ -577,9 +699,18 @@ def main():
     if args.dns_target:
         print("DNS test target:", args.dns_target)
 
+    if args.network_target:
+        print(
+            "Network test target:",
+            args.network_target
+        )
+
     try:
         while True:
-            collect_and_display(args.dns_target)
+            collect_and_display(
+                args.dns_target,
+                args.network_target
+            )
 
             print()
             print(
