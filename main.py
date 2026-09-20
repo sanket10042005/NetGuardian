@@ -6,30 +6,12 @@ from config import MONITORING_INTERVAL, TOP_PROCESS_LIMIT
 
 from health import check_health, get_overall_health
 
-from discovery.network import discover_network_interfaces
 from discovery.dns import discover_dns_servers
 from discovery.services import discover_tcp_services
 
 from dns_monitor import query_dns_server
 
-from gateway_monitor import (
-    check_gateway,
-    get_default_gateway
-)
-
-from network_monitor import ping_host
-
 from port_monitor import check_port
-
-from route_monitor import (
-    get_routing_table,
-    parse_routing_table
-)
-
-from path_monitor import (
-    get_route_to_host,
-    parse_route
-)
 
 from process_monitor import (
     get_processes,
@@ -52,8 +34,12 @@ from security.firewall_monitor import (
     discover_firewalls
 )
 
-from diagnostics.network_diagnostics import (
-    diagnose_full_network
+from diagnostics.network_evidence import (
+    collect_network_evidence
+)
+
+from diagnostics.root_cause import (
+    analyze_root_cause
 )
 
 
@@ -148,8 +134,8 @@ def display_system_report():
     print("=================================")
 
 
-def display_network_interfaces():
-    interfaces = discover_network_interfaces()
+def display_network_interfaces(evidence):
+    interfaces = evidence["interfaces"]
 
     print()
     print("========== Network Discovery ==========")
@@ -201,9 +187,8 @@ def display_network_interfaces():
     print("========================================")
 
 
-def display_routing_table():
-    output = get_routing_table()
-    routes = parse_routing_table(output)
+def display_routing_table(evidence):
+    routes = evidence["routes"]
 
     print()
     print("========== Routing Table ==========")
@@ -225,21 +210,24 @@ def display_routing_table():
     print("===================================")
 
 
-def display_gateway_diagnostic():
-    result = check_gateway()
+def display_gateway_diagnostic(evidence):
+    gateway = evidence["gateway"]
+    reachable = evidence["gateway_reachable"]
+    packet_loss = evidence["gateway_packet_loss"]
+    latency = evidence["gateway_latency"]
 
     print()
     print("========== Gateway Diagnostics ==========")
 
-    print("Gateway:", result["gateway"])
+    print("Gateway:", gateway)
 
-    if result["gateway"] is None:
+    if gateway is None:
         print("Status: NOT DETECTED")
 
-    elif result["reachable"]:
+    elif reachable:
         print("Status: REACHABLE")
-        print("Packet Loss:", result["packet_loss"], "%")
-        print("Average Latency:", result["latency"], "ms")
+        print("Packet Loss:", packet_loss, "%")
+        print("Average Latency:", latency, "ms")
 
     else:
         print("Status: UNREACHABLE")
@@ -249,8 +237,9 @@ def display_gateway_diagnostic():
     print("==========================================")
 
 
-def display_path_diagnostic():
-    gateway = get_default_gateway()
+def display_path_diagnostic(evidence):
+    gateway = evidence["gateway"]
+    default_route = evidence["default_route"]
 
     print()
     print("========== Path Diagnostics ==========")
@@ -259,26 +248,17 @@ def display_path_diagnostic():
         print("Target: Not available")
         print("Status: NO DEFAULT GATEWAY")
 
-    else:
-        output = get_route_to_host(gateway)
-        route = parse_route(output)
-
+    elif default_route is None:
         print("Target:", gateway)
+        print("Status: ROUTE NOT FOUND")
 
-        if route is None:
-            print("Status: ROUTE NOT FOUND")
-
-        else:
-            print("Destination:", route["destination"])
-            print("Gateway:", route["gateway"])
-            print("Interface:", route["interface"])
-            print("Source IP:", route["source_ip"])
-
-            if route["gateway"] is None:
-                print("Path Type: DIRECT")
-
-            else:
-                print("Path Type: VIA GATEWAY")
+    else:
+        print("Target:", gateway)
+        print("Destination:", gateway)
+        print("Gateway:", None)
+        print("Interface:", default_route["interface"])
+        print("Source IP:", default_route["source_ip"])
+        print("Path Type: DIRECT")
 
     print("=======================================")
 
@@ -362,109 +342,138 @@ def display_dns_diagnostic(dns_target):
     print("====================================")
 
 
-def display_network_diagnostic(network_target):
-    gateway_result = check_gateway()
-
-    interfaces = discover_network_interfaces()
-
-    routes_output = get_routing_table()
-    routes = parse_routing_table(routes_output)
-
-    default_route = next(
-        (
-            route
-            for route in routes
-            if route["destination"] == "default"
-        ),
-        None
-    )
-
-    interface_up = False
-
-    if default_route is not None:
-        route_interface = default_route.get("interface")
-
-        interface_up = any(
-            interface["name"] == route_interface
-            and interface["is_up"]
-            for interface in interfaces
-        )
-
-    internet_result = None
-
-    if network_target:
-        internet_result = ping_host(network_target)
-
-    diagnosis = diagnose_full_network(
-        gateway_result["gateway"],
-        gateway_result["reachable"],
-        interface_up,
-        default_route,
-        (
-            internet_result["reachable"]
-            if internet_result is not None
-            else False
-        )
+def display_network_diagnostic(evidence):
+    diagnosis = analyze_root_cause(
+        evidence
     )
 
     print()
     print("========== Network Diagnostic Engine ==========")
 
-    print()
-    print("Interface")
+    # ---------------------------------------------------------
+    # Collected Evidence
+    # ---------------------------------------------------------
 
-    if default_route is None:
-        print("Interface: Not determined")
-        print("Status: UNKNOWN")
+    print()
+    print("Collected Evidence")
+
+    if evidence["interface_up"] is True:
+        print("Interface: UP")
+
+    elif evidence["interface_up"] is False:
+        print("Interface: DOWN")
 
     else:
-        print("Interface:", default_route["interface"])
+        print("Interface: UNKNOWN")
 
-        if interface_up:
-            print("Status: UP")
-        else:
-            print("Status: DOWN")
+    if evidence["gateway_detected"]:
+        print("Gateway: DETECTED")
+
+    else:
+        print("Gateway: NOT DETECTED")
+
+    if evidence["gateway_reachable"]:
+        print("Gateway Reachability: REACHABLE")
+
+    else:
+        print("Gateway Reachability: UNREACHABLE")
+
+    if evidence["default_route_present"]:
+        print("Default Route: PRESENT")
+
+    else:
+        print("Default Route: NOT PRESENT")
+
+    if evidence["internet_reachable"] is None:
+        print("External Connectivity: NOT TESTED")
+
+    elif evidence["internet_reachable"]:
+        print("External Connectivity: REACHABLE")
+
+    else:
+        print("External Connectivity: UNREACHABLE")
+
+    # ---------------------------------------------------------
+    # Gateway Details
+    # ---------------------------------------------------------
 
     print()
-    print("Gateway")
+    print("Gateway Details")
 
-    print("Gateway:", gateway_result["gateway"])
+    print(
+        "Gateway:",
+        evidence["gateway"]
+    )
 
-    if gateway_result["reachable"]:
+    if evidence["gateway_reachable"]:
         print("Status: REACHABLE")
+
         print(
             "Packet Loss:",
-            gateway_result["packet_loss"],
+            evidence["gateway_packet_loss"],
             "%"
         )
+
         print(
             "Latency:",
-            gateway_result["latency"],
+            evidence["gateway_latency"],
             "ms"
         )
 
     else:
-        print("Status: UNREACHABLE")
+        if evidence["gateway"] is None:
+            print("Status: NOT DETECTED")
+        else:
+            print("Status: UNREACHABLE")
+
+        print("Packet Loss: Unknown")
+        print("Latency: Unknown")
+
+    # ---------------------------------------------------------
+    # Default Route
+    # ---------------------------------------------------------
 
     print()
     print("Default Route")
+
+    default_route = evidence["default_route"]
 
     if default_route is None:
         print("Status: NOT FOUND")
 
     else:
         print("Status: PRESENT")
-        print("Gateway:", default_route["gateway"])
-        print("Interface:", default_route["interface"])
-        print("Source IP:", default_route["source_ip"])
-        print("Protocol:", default_route["protocol"])
-        print("Metric:", default_route["metric"])
+        print(
+            "Gateway:",
+            default_route["gateway"]
+        )
+        print(
+            "Interface:",
+            default_route["interface"]
+        )
+        print(
+            "Source IP:",
+            default_route["source_ip"]
+        )
+        print(
+            "Protocol:",
+            default_route["protocol"]
+        )
+        print(
+            "Metric:",
+            default_route["metric"]
+        )
+
+    # ---------------------------------------------------------
+    # External Connectivity
+    # ---------------------------------------------------------
 
     print()
     print("External Connectivity")
 
-    if internet_result is None:
+    if evidence["network_target"] is None:
         print("Status: TEST NOT PERFORMED")
+
         print()
         print(
             "Use --network-target <host> "
@@ -472,29 +481,60 @@ def display_network_diagnostic(network_target):
         )
 
     else:
-        print("Target:", internet_result["host"])
+        print(
+            "Target:",
+            evidence["network_target"]
+        )
 
-        if internet_result["reachable"]:
+        if evidence["internet_reachable"]:
             print("Status: REACHABLE")
+
             print(
                 "Packet Loss:",
-                internet_result["packet_loss"],
+                evidence["internet_packet_loss"],
                 "%"
             )
+
             print(
                 "Latency:",
-                internet_result["latency"],
+                evidence["internet_latency"],
                 "ms"
             )
 
         else:
             print("Status: UNREACHABLE")
 
+            print(
+                "Packet Loss:",
+                evidence["internet_packet_loss"]
+            )
+
+            print(
+                "Latency:",
+                evidence["internet_latency"]
+            )
+
+    # ---------------------------------------------------------
+    # Root-Cause Analysis
+    # ---------------------------------------------------------
+
     print()
-    print("Final Diagnosis")
-    print("Status:", diagnosis["status"])
-    print("Severity:", diagnosis["severity"])
-    print("Finding:", diagnosis["finding"])
+    print("Root-Cause Analysis")
+
+    print(
+        "Status:",
+        diagnosis["status"]
+    )
+
+    print(
+        "Severity:",
+        diagnosis["severity"]
+    )
+
+    print(
+        "Finding:",
+        diagnosis["finding"]
+    )
 
     print()
     print("==============================================")
@@ -645,15 +685,43 @@ def collect_and_display(
     dns_target,
     network_target
 ):
+    # ---------------------------------------------------------
+    # System information
+    # ---------------------------------------------------------
+
     display_system_report()
 
-    display_network_interfaces()
+    # ---------------------------------------------------------
+    # ONE network evidence snapshot
+    # ---------------------------------------------------------
 
-    display_routing_table()
+    network_evidence = collect_network_evidence(
+        network_target
+    )
 
-    display_path_diagnostic()
+    # ---------------------------------------------------------
+    # All network displays consume the same snapshot
+    # ---------------------------------------------------------
 
-    display_gateway_diagnostic()
+    display_network_interfaces(
+        network_evidence
+    )
+
+    display_routing_table(
+        network_evidence
+    )
+
+    display_path_diagnostic(
+        network_evidence
+    )
+
+    display_gateway_diagnostic(
+        network_evidence
+    )
+
+    # ---------------------------------------------------------
+    # Process monitoring
+    # ---------------------------------------------------------
 
     processes = get_processes()
 
@@ -677,17 +745,40 @@ def collect_and_display(
         "Top Memory Processes"
     )
 
-    display_dns_diagnostic(dns_target)
+    # ---------------------------------------------------------
+    # DNS diagnostics
+    # ---------------------------------------------------------
 
-    display_network_diagnostic(network_target)
+    display_dns_diagnostic(
+        dns_target
+    )
+
+    # ---------------------------------------------------------
+    # Network diagnostic engine
+    # Uses the SAME network evidence snapshot
+    # ---------------------------------------------------------
+
+    display_network_diagnostic(
+        network_evidence
+    )
+
+    # ---------------------------------------------------------
+    # Service and security diagnostics
+    # ---------------------------------------------------------
 
     services = discover_tcp_services()
 
-    display_service_discovery(services)
+    display_service_discovery(
+        services
+    )
 
-    display_port_diagnostic(services)
+    display_port_diagnostic(
+        services
+    )
 
-    display_security_diagnostic(services)
+    display_security_diagnostic(
+        services
+    )
 
 
 def main():
@@ -697,7 +788,10 @@ def main():
     print("Press Ctrl+C to stop monitoring.")
 
     if args.dns_target:
-        print("DNS test target:", args.dns_target)
+        print(
+            "DNS test target:",
+            args.dns_target
+        )
 
     if args.network_target:
         print(
@@ -718,7 +812,9 @@ def main():
                 f"{MONITORING_INTERVAL} seconds..."
             )
 
-            time.sleep(MONITORING_INTERVAL)
+            time.sleep(
+                MONITORING_INTERVAL
+            )
 
     except KeyboardInterrupt:
         print()
