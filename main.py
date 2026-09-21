@@ -532,8 +532,18 @@ def display_network_diagnostic(evidence):
     )
 
     print(
+        "Failure Domain:",
+        diagnosis["failure_domain"]
+    )
+
+    print(
         "Finding:",
         diagnosis["finding"]
+    )
+
+    print(
+        "Recommendation:",
+        diagnosis["recommendation"]
     )
 
     print()

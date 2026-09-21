@@ -1,4 +1,3 @@
-
 from diagnostics.root_cause import analyze_root_cause
 
 
@@ -110,3 +109,33 @@ def test_missing_external_test():
 
     assert result["status"] == "REVIEW"
     assert result["severity"] == "MEDIUM"
+
+
+def test_upstream_recommendation():
+    evidence = {
+        "interface_up": True,
+        "gateway_detected": True,
+        "gateway_reachable": True,
+        "default_route_present": True,
+        "internet_reachable": False
+    }
+
+    result = analyze_root_cause(evidence)
+
+    assert "recommendation" in result
+    assert "upstream" in result["recommendation"].lower()
+
+
+def test_healthy_recommendation():
+    evidence = {
+        "interface_up": True,
+        "gateway_detected": True,
+        "gateway_reachable": True,
+        "default_route_present": True,
+        "internet_reachable": True
+    }
+
+    result = analyze_root_cause(evidence)
+
+    assert "recommendation" in result
+    assert "no action" in result["recommendation"].lower()
