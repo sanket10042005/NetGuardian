@@ -238,27 +238,31 @@ def display_gateway_diagnostic(evidence):
 
 
 def display_path_diagnostic(evidence):
-    gateway = evidence["gateway"]
+    network_target = evidence["network_target"]
     default_route = evidence["default_route"]
 
     print()
     print("========== Path Diagnostics ==========")
 
-    if gateway is None:
-        print("Target: Not available")
-        print("Status: NO DEFAULT GATEWAY")
+    if network_target is None:
+        print("Target: Not provided")
+        print("Status: PATH TEST NOT PERFORMED")
 
     elif default_route is None:
-        print("Target:", gateway)
+        print("Target:", network_target)
         print("Status: ROUTE NOT FOUND")
 
     else:
-        print("Target:", gateway)
-        print("Destination:", gateway)
-        print("Gateway:", None)
+        print("Target:", network_target)
+        print("Destination:", network_target)
+        print("Gateway:", default_route["gateway"])
         print("Interface:", default_route["interface"])
         print("Source IP:", default_route["source_ip"])
-        print("Path Type: DIRECT")
+
+        if default_route["gateway"] is None:
+            print("Path Type: DIRECT")
+        else:
+            print("Path Type: VIA GATEWAY")
 
     print("=======================================")
 
@@ -350,10 +354,6 @@ def display_network_diagnostic(evidence):
     print()
     print("========== Network Diagnostic Engine ==========")
 
-    # ---------------------------------------------------------
-    # Collected Evidence
-    # ---------------------------------------------------------
-
     print()
     print("Collected Evidence")
 
@@ -393,10 +393,6 @@ def display_network_diagnostic(evidence):
     else:
         print("External Connectivity: UNREACHABLE")
 
-    # ---------------------------------------------------------
-    # Gateway Details
-    # ---------------------------------------------------------
-
     print()
     print("Gateway Details")
 
@@ -429,10 +425,6 @@ def display_network_diagnostic(evidence):
         print("Packet Loss: Unknown")
         print("Latency: Unknown")
 
-    # ---------------------------------------------------------
-    # Default Route
-    # ---------------------------------------------------------
-
     print()
     print("Default Route")
 
@@ -463,10 +455,6 @@ def display_network_diagnostic(evidence):
             "Metric:",
             default_route["metric"]
         )
-
-    # ---------------------------------------------------------
-    # External Connectivity
-    # ---------------------------------------------------------
 
     print()
     print("External Connectivity")
@@ -513,10 +501,6 @@ def display_network_diagnostic(evidence):
                 "Latency:",
                 evidence["internet_latency"]
             )
-
-    # ---------------------------------------------------------
-    # Root-Cause Analysis
-    # ---------------------------------------------------------
 
     print()
     print("Root-Cause Analysis")
@@ -695,23 +679,11 @@ def collect_and_display(
     dns_target,
     network_target
 ):
-    # ---------------------------------------------------------
-    # System information
-    # ---------------------------------------------------------
-
     display_system_report()
-
-    # ---------------------------------------------------------
-    # ONE network evidence snapshot
-    # ---------------------------------------------------------
 
     network_evidence = collect_network_evidence(
         network_target
     )
-
-    # ---------------------------------------------------------
-    # All network displays consume the same snapshot
-    # ---------------------------------------------------------
 
     display_network_interfaces(
         network_evidence
@@ -728,10 +700,6 @@ def collect_and_display(
     display_gateway_diagnostic(
         network_evidence
     )
-
-    # ---------------------------------------------------------
-    # Process monitoring
-    # ---------------------------------------------------------
 
     processes = get_processes()
 
@@ -755,26 +723,13 @@ def collect_and_display(
         "Top Memory Processes"
     )
 
-    # ---------------------------------------------------------
-    # DNS diagnostics
-    # ---------------------------------------------------------
-
     display_dns_diagnostic(
         dns_target
     )
 
-    # ---------------------------------------------------------
-    # Network diagnostic engine
-    # Uses the SAME network evidence snapshot
-    # ---------------------------------------------------------
-
     display_network_diagnostic(
         network_evidence
     )
-
-    # ---------------------------------------------------------
-    # Service and security diagnostics
-    # ---------------------------------------------------------
 
     services = discover_tcp_services()
 
