@@ -239,7 +239,7 @@ def display_gateway_diagnostic(evidence):
 
 def display_path_diagnostic(evidence):
     network_target = evidence["network_target"]
-    default_route = evidence["default_route"]
+    target_route = evidence["target_route"]
 
     print()
     print("========== Path Diagnostics ==========")
@@ -248,24 +248,23 @@ def display_path_diagnostic(evidence):
         print("Target: Not provided")
         print("Status: PATH TEST NOT PERFORMED")
 
-    elif default_route is None:
+    elif target_route is None:
         print("Target:", network_target)
         print("Status: ROUTE NOT FOUND")
 
     else:
         print("Target:", network_target)
-        print("Destination:", network_target)
-        print("Gateway:", default_route["gateway"])
-        print("Interface:", default_route["interface"])
-        print("Source IP:", default_route["source_ip"])
+        print("Destination:", target_route["destination"])
+        print("Gateway:", target_route["gateway"])
+        print("Interface:", target_route["interface"])
+        print("Source IP:", target_route["source_ip"])
 
-        if default_route["gateway"] is None:
+        if target_route["gateway"] is None:
             print("Path Type: DIRECT")
         else:
             print("Path Type: VIA GATEWAY")
 
     print("=======================================")
-
 
 def display_processes(processes, title):
     print()

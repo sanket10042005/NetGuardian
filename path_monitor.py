@@ -26,6 +26,9 @@ def parse_route(output):
 
     parts = output.split()
 
+    if not parts:
+        return None
+
     route = {
         "destination": parts[0],
         "gateway": None,
@@ -37,13 +40,16 @@ def parse_route(output):
 
     while index < len(parts):
         if parts[index] == "via":
-            route["gateway"] = parts[index + 1]
+            if index + 1 < len(parts):
+                route["gateway"] = parts[index + 1]
 
         elif parts[index] == "dev":
-            route["interface"] = parts[index + 1]
+            if index + 1 < len(parts):
+                route["interface"] = parts[index + 1]
 
         elif parts[index] == "src":
-            route["source_ip"] = parts[index + 1]
+            if index + 1 < len(parts):
+                route["source_ip"] = parts[index + 1]
 
         index += 1
 

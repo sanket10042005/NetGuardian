@@ -7,6 +7,11 @@ from route_monitor import (
     parse_routing_table
 )
 
+from path_monitor import (
+    get_route_to_host,
+    parse_route
+)
+
 from network_monitor import ping_host
 
 
@@ -66,23 +71,37 @@ def collect_network_evidence(network_target=None):
         )
 
     # ---------------------------------------------------------
-    # 5. Optional external connectivity test
+    # 5. Discover the route to the requested network target
+    # ---------------------------------------------------------
+
+    target_route = None
+
+    if network_target:
+        target_route_output = get_route_to_host(
+            network_target
+        )
+
+        target_route = parse_route(
+            target_route_output
+        )
+
+    # ---------------------------------------------------------
+    # 6. Optional external connectivity test
     # ---------------------------------------------------------
 
     internet_result = None
 
     if network_target:
-        internet_result = ping_host(network_target)
+        internet_result = ping_host(
+            network_target
+        )
 
     # ---------------------------------------------------------
-    # 6. Build one complete evidence snapshot
+    # 7. Build one complete evidence snapshot
     # ---------------------------------------------------------
 
     return {
-        # -----------------------------------------------------
         # Detailed evidence
-        # -----------------------------------------------------
-
         "interfaces": interfaces,
 
         "gateway": gateway_result["gateway"],
@@ -93,6 +112,7 @@ def collect_network_evidence(network_target=None):
         "default_route": default_route,
 
         "network_target": network_target,
+        "target_route": target_route,
 
         "internet_packet_loss": (
             internet_result["packet_loss"]
@@ -106,10 +126,7 @@ def collect_network_evidence(network_target=None):
             else None
         ),
 
-        # -----------------------------------------------------
         # Root-cause summary evidence
-        # -----------------------------------------------------
-
         "interface_up": interface_up,
 
         "gateway_detected": (
