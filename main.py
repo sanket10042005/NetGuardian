@@ -6,10 +6,7 @@ from config import MONITORING_INTERVAL, TOP_PROCESS_LIMIT
 
 from health import check_health, get_overall_health
 
-from discovery.dns import discover_dns_servers
 from discovery.services import discover_tcp_services
-
-from dns_monitor import query_dns_server
 
 from port_monitor import check_port
 
@@ -32,6 +29,10 @@ from security.security_assessment import (
 
 from security.firewall_monitor import (
     discover_firewalls
+)
+
+from diagnostics.dns_evidence import (
+    collect_dns_evidence
 )
 
 from diagnostics.network_evidence import (
@@ -266,6 +267,7 @@ def display_path_diagnostic(evidence):
 
     print("=======================================")
 
+
 def display_processes(processes, title):
     print()
     print(f"========== {title} ==========")
@@ -285,8 +287,10 @@ def display_processes(processes, title):
     print("========================================")
 
 
-def display_dns_diagnostic(dns_target):
-    dns_servers = discover_dns_servers()
+def display_dns_diagnostic(evidence):
+    dns_target = evidence["dns_target"]
+    dns_servers = evidence["dns_servers"]
+    dns_results = evidence["dns_results"]
 
     print()
     print("========== DNS Diagnostics ==========")
@@ -295,20 +299,6 @@ def display_dns_diagnostic(dns_target):
         print("DNS Servers: Not detected")
         print("Status: DNS CONFIGURATION NOT FOUND")
 
-    elif not dns_target:
-        print("Discovered DNS Servers:")
-
-        for server in dns_servers:
-            print(" -", server)
-
-        print()
-        print("Status: DNS TEST TARGET NOT PROVIDED")
-        print()
-        print(
-            "Use --dns-target <hostname> "
-            "to perform DNS resolution tests."
-        )
-
     else:
         print("Discovered DNS Servers:")
 
@@ -316,31 +306,51 @@ def display_dns_diagnostic(dns_target):
             print(" -", server)
 
         print()
-        print("DNS Resolution Tests")
-        print("Test Host:", dns_target)
 
-        for server in dns_servers:
-            result = query_dns_server(
-                server,
-                dns_target
+        if dns_target is None:
+            print("Status: DNS TEST TARGET NOT PROVIDED")
+            print()
+            print(
+                "Use --dns-target <hostname> "
+                "to perform DNS resolution tests."
             )
 
-            print()
-            print("DNS Server:", result["dns_server"])
-            print("Status:", result["status"])
+        else:
+            print("DNS Resolution Tests")
+            print("Test Host:", dns_target)
 
-            if result["resolved"]:
-                print("IP Address:", result["ip_address"])
+            if not dns_results:
+                print()
+                print("Status: NO DNS RESULTS")
 
             else:
-                print("IP Address: Unknown")
+                for result in dns_results:
+                    print()
+                    print(
+                        "DNS Server:",
+                        result["dns_server"]
+                    )
 
-            if result["response_time_ms"] is not None:
-                print(
-                    "Response Time:",
-                    result["response_time_ms"],
-                    "ms"
-                )
+                    print(
+                        "Status:",
+                        result["status"]
+                    )
+
+                    if result["resolved"]:
+                        print(
+                            "IP Address:",
+                            result["ip_address"]
+                        )
+
+                    else:
+                        print("IP Address: Unknown")
+
+                    if result["response_time_ms"] is not None:
+                        print(
+                            "Response Time:",
+                            result["response_time_ms"],
+                            "ms"
+                        )
 
     print("====================================")
 
@@ -722,8 +732,12 @@ def collect_and_display(
         "Top Memory Processes"
     )
 
-    display_dns_diagnostic(
+    dns_evidence = collect_dns_evidence(
         dns_target
+    )
+
+    display_dns_diagnostic(
+        dns_evidence
     )
 
     display_network_diagnostic(
