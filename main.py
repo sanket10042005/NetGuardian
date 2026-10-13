@@ -35,6 +35,10 @@ from diagnostics.dns_evidence import (
     collect_dns_evidence
 )
 
+from diagnostics.dns_root_cause import (
+    analyze_dns_root_cause
+)
+
 from diagnostics.network_evidence import (
     collect_network_evidence
 )
@@ -44,9 +48,16 @@ from diagnostics.root_cause import (
 )
 
 
+# =========================================================
+# ARGUMENTS
+# =========================================================
+
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        description="NetGuardian infrastructure monitoring and diagnostics"
+        description=(
+            "NetGuardian infrastructure monitoring "
+            "and diagnostics"
+        )
     )
 
     parser.add_argument(
@@ -56,11 +67,18 @@ def parse_arguments():
 
     parser.add_argument(
         "--network-target",
-        help="Host to use for external network reachability diagnostics"
+        help=(
+            "Host to use for external network "
+            "reachability diagnostics"
+        )
     )
 
     return parser.parse_args()
 
+
+# =========================================================
+# SYSTEM MONITORING
+# =========================================================
 
 def display_system_report():
     cpu_usage, memory_usage, disk_usage = get_system_metrics()
@@ -100,7 +118,6 @@ def display_system_report():
 
     print()
     print("System Information")
-
     print("OS:", operating_system)
     print("Kernel:", os_version)
     print("Hostname:", hostname)
@@ -131,9 +148,12 @@ def display_system_report():
 
     print()
     print("Overall System Health:", overall_health)
-
     print("=================================")
 
+
+# =========================================================
+# NETWORK INTERFACE DISCOVERY
+# =========================================================
 
 def display_network_interfaces(evidence):
     interfaces = evidence["interfaces"]
@@ -166,7 +186,6 @@ def display_network_interfaces(evidence):
                     "/",
                     address["netmask"]
                 )
-
         else:
             print("IPv4 Addresses: None")
 
@@ -180,13 +199,16 @@ def display_network_interfaces(evidence):
                     "/",
                     address["netmask"]
                 )
-
         else:
             print("IPv6 Addresses: None")
 
     print()
     print("========================================")
 
+
+# =========================================================
+# ROUTING TABLE
+# =========================================================
 
 def display_routing_table(evidence):
     routes = evidence["routes"]
@@ -211,6 +233,10 @@ def display_routing_table(evidence):
     print("===================================")
 
 
+# =========================================================
+# GATEWAY DIAGNOSTICS
+# =========================================================
+
 def display_gateway_diagnostic(evidence):
     gateway = evidence["gateway"]
     reachable = evidence["gateway_reachable"]
@@ -219,7 +245,6 @@ def display_gateway_diagnostic(evidence):
 
     print()
     print("========== Gateway Diagnostics ==========")
-
     print("Gateway:", gateway)
 
     if gateway is None:
@@ -237,6 +262,10 @@ def display_gateway_diagnostic(evidence):
 
     print("==========================================")
 
+
+# =========================================================
+# TARGET-SPECIFIC PATH DIAGNOSTICS
+# =========================================================
 
 def display_path_diagnostic(evidence):
     network_target = evidence["network_target"]
@@ -268,6 +297,10 @@ def display_path_diagnostic(evidence):
     print("=======================================")
 
 
+# =========================================================
+# PROCESS MONITORING
+# =========================================================
+
 def display_processes(processes, title):
     print()
     print(f"========== {title} ==========")
@@ -287,7 +320,16 @@ def display_processes(processes, title):
     print("========================================")
 
 
+# =========================================================
+# DNS DIAGNOSTICS AND ROOT-CAUSE ANALYSIS
+# =========================================================
+
 def display_dns_diagnostic(evidence):
+    """
+    Display discovered DNS servers, query results,
+    reliability information, and root-cause analysis.
+    """
+
     dns_target = evidence["dns_target"]
     dns_servers = evidence["dns_servers"]
     dns_results = evidence["dns_results"]
@@ -328,37 +370,127 @@ def display_dns_diagnostic(evidence):
                     print()
                     print(
                         "DNS Server:",
-                        result["dns_server"]
+                        result.get("dns_server")
                     )
 
                     print(
                         "Status:",
-                        result["status"]
+                        result.get("status")
                     )
 
-                    if result["resolved"]:
+                    if result.get("resolved"):
                         print(
                             "IP Address:",
-                            result["ip_address"]
+                            result.get("ip_address")
                         )
-
                     else:
                         print("IP Address: Unknown")
 
-                    if result["response_time_ms"] is not None:
+                    response_time = result.get(
+                        "response_time_ms"
+                    )
+
+                    if response_time is not None:
                         print(
                             "Response Time:",
-                            result["response_time_ms"],
+                            response_time,
                             "ms"
                         )
 
     print("====================================")
 
+    # -----------------------------------------------------
+    # DNS Root-Cause Analysis
+    # -----------------------------------------------------
+
+    diagnosis = analyze_dns_root_cause(evidence)
+
+    print()
+    print("========== DNS Root-Cause Analysis ==========")
+
+    print("Status:", diagnosis["status"])
+    print("Severity:", diagnosis["severity"])
+
+    print(
+        "Failure Domain:",
+        diagnosis["failure_domain"]
+    )
+
+    print("Finding:", diagnosis["finding"])
+
+    # -----------------------------------------------------
+    # DNS Reliability Summary
+    # -----------------------------------------------------
+
+    print()
+    print("DNS Reliability")
+
+    print(
+        "Successful Servers:",
+        diagnosis["successful_server_count"]
+    )
+
+    print(
+        "Failed Servers:",
+        diagnosis["failed_server_count"]
+    )
+
+    for result in diagnosis["server_results"]:
+        successful = (
+            result.get("status") == "NOERROR"
+            and result.get("resolved") is True
+        )
+
+        print()
+        print(
+            "DNS Server:",
+            result.get("dns_server")
+        )
+
+        print(
+            "Query Status:",
+            result.get("status")
+        )
+
+        if successful:
+            print("Result: SUCCESS")
+        else:
+            print("Result: FAILURE")
+
+        if result.get("ip_address") is not None:
+            print(
+                "Resolved IP:",
+                result["ip_address"]
+            )
+
+        response_time = result.get("response_time_ms")
+
+        if response_time is not None:
+            print(
+                "Response Time:",
+                response_time,
+                "ms"
+            )
+
+    # -----------------------------------------------------
+    # DNS Recommendation
+    # -----------------------------------------------------
+
+    print()
+    print(
+        "Recommendation:",
+        diagnosis["recommendation"]
+    )
+
+    print("=============================================")
+
+
+# =========================================================
+# NETWORK ROOT-CAUSE ANALYSIS
+# =========================================================
 
 def display_network_diagnostic(evidence):
-    diagnosis = analyze_root_cause(
-        evidence
-    )
+    diagnosis = analyze_root_cause(evidence)
 
     print()
     print("========== Network Diagnostic Engine ==========")
@@ -377,19 +509,16 @@ def display_network_diagnostic(evidence):
 
     if evidence["gateway_detected"]:
         print("Gateway: DETECTED")
-
     else:
         print("Gateway: NOT DETECTED")
 
     if evidence["gateway_reachable"]:
         print("Gateway Reachability: REACHABLE")
-
     else:
         print("Gateway Reachability: UNREACHABLE")
 
     if evidence["default_route_present"]:
         print("Default Route: PRESENT")
-
     else:
         print("Default Route: NOT PRESENT")
 
@@ -404,11 +533,7 @@ def display_network_diagnostic(evidence):
 
     print()
     print("Gateway Details")
-
-    print(
-        "Gateway:",
-        evidence["gateway"]
-    )
+    print("Gateway:", evidence["gateway"])
 
     if evidence["gateway_reachable"]:
         print("Status: REACHABLE")
@@ -444,33 +569,17 @@ def display_network_diagnostic(evidence):
 
     else:
         print("Status: PRESENT")
-        print(
-            "Gateway:",
-            default_route["gateway"]
-        )
-        print(
-            "Interface:",
-            default_route["interface"]
-        )
-        print(
-            "Source IP:",
-            default_route["source_ip"]
-        )
-        print(
-            "Protocol:",
-            default_route["protocol"]
-        )
-        print(
-            "Metric:",
-            default_route["metric"]
-        )
+        print("Gateway:", default_route["gateway"])
+        print("Interface:", default_route["interface"])
+        print("Source IP:", default_route["source_ip"])
+        print("Protocol:", default_route["protocol"])
+        print("Metric:", default_route["metric"])
 
     print()
     print("External Connectivity")
 
     if evidence["network_target"] is None:
         print("Status: TEST NOT PERFORMED")
-
         print()
         print(
             "Use --network-target <host> "
@@ -478,10 +587,7 @@ def display_network_diagnostic(evidence):
         )
 
     else:
-        print(
-            "Target:",
-            evidence["network_target"]
-        )
+        print("Target:", evidence["network_target"])
 
         if evidence["internet_reachable"]:
             print("Status: REACHABLE")
@@ -514,25 +620,15 @@ def display_network_diagnostic(evidence):
     print()
     print("Root-Cause Analysis")
 
-    print(
-        "Status:",
-        diagnosis["status"]
-    )
-
-    print(
-        "Severity:",
-        diagnosis["severity"]
-    )
+    print("Status:", diagnosis["status"])
+    print("Severity:", diagnosis["severity"])
 
     print(
         "Failure Domain:",
         diagnosis["failure_domain"]
     )
 
-    print(
-        "Finding:",
-        diagnosis["finding"]
-    )
+    print("Finding:", diagnosis["finding"])
 
     print(
         "Recommendation:",
@@ -542,6 +638,10 @@ def display_network_diagnostic(evidence):
     print()
     print("==============================================")
 
+
+# =========================================================
+# TCP SERVICE DISCOVERY
+# =========================================================
 
 def display_service_discovery(services):
     print()
@@ -562,6 +662,10 @@ def display_service_discovery(services):
     print("========================================")
 
 
+# =========================================================
+# TCP PORT DIAGNOSTICS
+# =========================================================
+
 def display_port_diagnostic(services):
     print()
     print("========== Port Diagnostics ==========")
@@ -579,7 +683,10 @@ def display_port_diagnostic(services):
             test_address = address
 
             if "%" in test_address:
-                test_address = test_address.split("%", 1)[0]
+                test_address = test_address.split(
+                    "%",
+                    1
+                )[0]
 
             if (
                 test_address.startswith("[")
@@ -587,6 +694,8 @@ def display_port_diagnostic(services):
             ):
                 test_address = test_address[1:-1]
 
+            # A wildcard address cannot be used as the
+            # destination for a normal connection test.
             if test_address == "0.0.0.0":
                 test_address = "127.0.0.1"
 
@@ -606,12 +715,15 @@ def display_port_diagnostic(services):
 
             if result["open"]:
                 print("Status: OPEN")
-
             else:
                 print("Status: CLOSED")
 
     print("======================================")
 
+
+# =========================================================
+# SECURITY ASSESSMENT
+# =========================================================
 
 def display_security_diagnostic(services):
     firewall_data = discover_firewalls()
@@ -622,13 +734,14 @@ def display_security_diagnostic(services):
     print("========== Security Assessment ==========")
 
     if not findings:
-        print("No TCP services available for security analysis.")
+        print(
+            "No TCP services available for security analysis."
+        )
 
     else:
         firewall_statuses = []
 
         for firewall in firewall_data.values():
-
             if firewall["status"] == "ACTIVE":
                 firewall_statuses.append("ACTIVE")
 
@@ -663,7 +776,6 @@ def display_security_diagnostic(services):
         print("Firewall Assessment:", firewall_status)
 
         for finding in findings:
-
             assessment = assess_service_security(
                 finding,
                 firewall_status
@@ -674,42 +786,55 @@ def display_security_diagnostic(services):
             print("Address:", assessment["address"])
             print("Port:", assessment["port"])
             print("Exposure:", assessment["exposure"])
+
             print(
                 "Firewall Status:",
                 assessment["firewall_status"]
             )
+
             print("Severity:", assessment["severity"])
             print("Finding:", assessment["message"])
 
     print("==========================================")
 
 
+# =========================================================
+# COLLECT AND DISPLAY ALL DIAGNOSTICS
+# =========================================================
+
 def collect_and_display(
     dns_target,
     network_target
 ):
+    # System monitoring
     display_system_report()
 
+    # Collect network evidence once for this report
     network_evidence = collect_network_evidence(
         network_target
     )
 
+    # Network discovery
     display_network_interfaces(
         network_evidence
     )
 
+    # Routing table
     display_routing_table(
         network_evidence
     )
 
+    # Target-specific path diagnostics
     display_path_diagnostic(
         network_evidence
     )
 
+    # Gateway diagnostics
     display_gateway_diagnostic(
         network_evidence
     )
 
+    # Process monitoring
     processes = get_processes()
 
     top_cpu = get_top_cpu_processes(
@@ -732,6 +857,7 @@ def collect_and_display(
         "Top Memory Processes"
     )
 
+    # DNS evidence and root-cause analysis
     dns_evidence = collect_dns_evidence(
         dns_target
     )
@@ -740,24 +866,32 @@ def collect_and_display(
         dns_evidence
     )
 
+    # Network root-cause analysis
     display_network_diagnostic(
         network_evidence
     )
 
+    # TCP service discovery
     services = discover_tcp_services()
 
     display_service_discovery(
         services
     )
 
+    # TCP port diagnostics
     display_port_diagnostic(
         services
     )
 
+    # Firewall and service security assessment
     display_security_diagnostic(
         services
     )
 
+
+# =========================================================
+# MAIN LOOP
+# =========================================================
 
 def main():
     args = parse_arguments()
