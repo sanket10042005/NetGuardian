@@ -107,3 +107,117 @@ def test_all_servers_timeout():
 
     assert result["status"] == "REVIEW"
     assert result["failure_domain"] == "DNS_CONNECTIVITY"
+def test_noerror_without_ip_address():
+    evidence = make_evidence(
+        dns_results=[
+            {
+                "dns_server": "192.0.2.53",
+                "status": "NOERROR",
+                "resolved": False,
+                "ip_address": None,
+                "response_time_ms": 20.0
+            }
+        ]
+    )
+
+    result = analyze_dns_root_cause(evidence)
+
+    assert result["status"] == "REVIEW"
+    assert result["failure_domain"] == "DNS_EVIDENCE"
+    assert result["successful_server_count"] == 0
+    assert result["failed_server_count"] == 1
+
+
+def test_invalid_resolved_ip_address():
+    evidence = make_evidence(
+        dns_results=[
+            {
+                "dns_server": "192.0.2.53",
+                "status": "NOERROR",
+                "resolved": True,
+                "ip_address": "not-an-ip-address",
+                "response_time_ms": 20.0
+            }
+        ]
+    )
+
+    result = analyze_dns_root_cause(evidence)
+
+    assert result["status"] == "REVIEW"
+    assert result["failure_domain"] == "DNS_EVIDENCE"
+    assert result["successful_server_count"] == 0
+
+
+def test_missing_dns_status():
+    evidence = make_evidence(
+        dns_results=[
+            {
+                "dns_server": "192.0.2.53",
+                "resolved": False,
+                "ip_address": None
+            }
+        ]
+    )
+
+    result = analyze_dns_root_cause(evidence)
+
+    assert result["status"] == "REVIEW"
+    assert result["failure_domain"] == "DNS_EVIDENCE"
+
+
+def test_one_server_succeeds_and_another_fails():
+    evidence = make_evidence(
+        dns_servers=[
+            "192.0.2.53",
+            "192.0.2.54"
+        ],
+        dns_results=[
+            {
+                "dns_server": "192.0.2.53",
+                "status": "NOERROR",
+                "resolved": True,
+                "ip_address": "192.0.2.10",
+                "response_time_ms": 25.0
+            },
+            {
+                "dns_server": "192.0.2.54",
+                "status": "SERVFAIL",
+                "resolved": False,
+                "ip_address": None,
+                "response_time_ms": 40.0
+            }
+        ]
+    )
+
+    result = analyze_dns_root_cause(evidence)
+
+    assert result["status"] == "HEALTHY"
+    assert result["failure_domain"] == "DNS_RELIABILITY"
+    assert result["successful_server_count"] == 1
+    assert result["failed_server_count"] == 1
+
+
+def test_malformed_dns_result():
+    evidence = make_evidence(
+        dns_results=[
+            None
+        ]
+    )
+
+    result = analyze_dns_root_cause(evidence)
+
+    assert result["status"] == "REVIEW"
+    assert result["failure_domain"] == "DNS_EVIDENCE"
+    assert result["successful_server_count"] == 0
+
+
+def test_empty_dns_results():
+    evidence = make_evidence(
+        dns_results=[]
+    )
+
+    result = analyze_dns_root_cause(evidence)
+
+    assert result["status"] == "REVIEW"
+    assert result["successful_server_count"] == 0
+    assert result["failed_server_count"] == 0
