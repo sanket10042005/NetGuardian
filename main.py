@@ -653,11 +653,29 @@ def display_service_discovery(services):
     else:
         for service in services:
             print(
-                service["protocol"],
-                service["address"],
-                ":",
-                service["port"]
+                f"Protocol: {service['protocol']} | "
+                f"Address: {service['address']} | "
+                f"Port: {service['port']}"
             )
+
+            owners = service.get("process_owners", [])
+
+            if owners:
+                owner_details = ", ".join(
+                    f"{owner['process_name']} (PID {owner['pid']})"
+                    for owner in owners
+                )
+
+                print(f"Process owner(s): {owner_details}")
+
+            else:
+                print("Process owner(s): Unavailable")
+
+            print(
+                "Ownership status: "
+                f"{service.get('ownership_status', 'UNKNOWN')}"
+            )
+            print("-" * 40)
 
     print("========================================")
 
