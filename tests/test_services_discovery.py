@@ -4,7 +4,7 @@ from discovery.services import (
     discover_tcp_services,
     normalize_address,
     parse_process_owners,
-    parse_tcp_services
+    parse_tcp_services,
 )
 
 
@@ -51,7 +51,7 @@ def test_discovered_services_are_unique():
             (
                 service["protocol"],
                 service["address"],
-                service["port"]
+                service["port"],
             )
             for service in services
         }
@@ -67,7 +67,7 @@ def test_parse_process_owners_extracts_name_and_pid():
     assert parse_process_owners(line) == [
         {
             "process_name": "sample-service",
-            "pid": 4321
+            "pid": 4321,
         }
     ]
 
@@ -82,12 +82,12 @@ def test_parse_process_owners_supports_multiple_owners():
     assert parse_process_owners(line) == [
         {
             "process_name": "service-one",
-            "pid": 123
+            "pid": 123,
         },
         {
             "process_name": "service-two",
-            "pid": 456
-        }
+            "pid": 456,
+        },
     ]
 
 
@@ -128,7 +128,7 @@ def test_parse_tcp_services_includes_process_ownership():
     assert service["process_owners"] == [
         {
             "process_name": "sample-service",
-            "pid": 4321
+            "pid": 4321,
         }
     ]
 
@@ -182,11 +182,51 @@ def test_parse_tcp_services_ignores_malformed_lines():
             (
                 "LISTEN 0 128 127.0.0.1:70000 "
                 "0.0.0.0:*"
-            )
+            ),
         ]
     )
 
     assert parse_tcp_services(output) == []
+
+
+def test_parse_tcp_services_reports_ownership_source():
+    output = (
+        'LISTEN 0 128 127.0.0.1:45678 0.0.0.0:* '
+        'users:(("sample-service",pid=4321,fd=5))'
+    )
+
+    service = parse_tcp_services(output)[0]
+
+    assert service["ownership_source"] == "ss"
+
+
+def test_parse_tcp_services_reports_available_ownership_note():
+    output = (
+        'LISTEN 0 128 127.0.0.1:45678 0.0.0.0:* '
+        'users:(("sample-service",pid=4321,fd=5))'
+    )
+
+    service = parse_tcp_services(output)[0]
+
+    assert service["ownership_status"] == "AVAILABLE"
+    assert service["ownership_note"] == (
+        "Process ownership was discovered."
+    )
+
+
+def test_parse_tcp_services_reports_unavailable_ownership_note():
+    output = (
+        "LISTEN 0 128 127.0.0.1:45678 "
+        "0.0.0.0:*"
+    )
+
+    service = parse_tcp_services(output)[0]
+
+    assert service["ownership_status"] == "UNAVAILABLE"
+    assert service["ownership_note"] == (
+        "Process ownership could not be verified "
+        "with the current visibility."
+    )
 
 
 @patch("discovery.services.subprocess.run")
@@ -215,7 +255,7 @@ def test_discovery_handles_command_failure(mock_run):
 
     mock_run.side_effect = subprocess.CalledProcessError(
         returncode=1,
-        cmd=["ss", "-ltnpH"]
+        cmd=["ss", "-ltnpH"],
     )
 
     assert discover_tcp_services() == []

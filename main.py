@@ -675,6 +675,17 @@ def display_service_discovery(services):
                 "Ownership status: "
                 f"{service.get('ownership_status', 'UNKNOWN')}"
             )
+
+            print(
+                "Ownership source: "
+                f"{service.get('ownership_source', 'UNKNOWN')}"
+            )
+
+            note = service.get("ownership_note")
+
+            if note:
+                print(f"Ownership note: {note}")
+
             print("-" * 40)
 
     print("========================================")

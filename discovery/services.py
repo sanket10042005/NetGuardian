@@ -27,16 +27,13 @@ def parse_process_owners(line):
 
     A socket can have multiple associated processes. If ownership
     information is unavailable, return an empty list.
-
-    Process names and PIDs are discovered from command output;
-    they are never hardcoded.
     """
     owners = []
 
     for match in PROCESS_PATTERN.finditer(line):
         owner = {
             "process_name": match.group("name"),
-            "pid": int(match.group("pid"))
+            "pid": int(match.group("pid")),
         }
 
         if owner not in owners:
@@ -49,8 +46,9 @@ def parse_tcp_services(output):
     """
     Parse listening TCP sockets from ss -ltnpH output.
 
-    Preserve the existing protocol, address, and port fields.
-    Add dynamically discovered process ownership information.
+    Process ownership is collected when visible to the current user.
+    Missing ownership information is reported without guessing why
+    it is unavailable.
     """
     services = []
 
@@ -62,9 +60,8 @@ def parse_tcp_services(output):
 
         parts = line.split()
 
-        # Expected fields:
         # State, Recv-Q, Send-Q, Local Address:Port,
-        # Peer Address:Port, optional process information.
+        # Peer Address:Port, and optional process information.
         if len(parts) < 5:
             continue
 
@@ -89,18 +86,28 @@ def parse_tcp_services(output):
         address = normalize_address(address)
         owners = parse_process_owners(line)
 
+        ownership_available = bool(owners)
+
         service = {
             "protocol": "TCP",
             "address": address,
             "port": port,
             "process_owners": owners,
             "ownership_status": (
-                "AVAILABLE" if owners else "UNAVAILABLE"
-            )
+                "AVAILABLE" if ownership_available else "UNAVAILABLE"
+            ),
+            "ownership_source": "ss",
+            "ownership_note": (
+                "Process ownership was discovered."
+                if ownership_available
+                else (
+                    "Process ownership could not be verified "
+                    "with the current visibility."
+                )
+            ),
         }
 
-        # Retain the original service fields while allowing
-        # multiple process owners to be represented.
+        # Preserve the original single-owner fields for compatibility.
         if owners:
             service["process_name"] = owners[0]["process_name"]
             service["pid"] = owners[0]["pid"]
@@ -119,8 +126,8 @@ def discover_tcp_services():
     """
     Discover listening TCP services using ss.
 
-    This function does not automatically request root privileges.
-    Process ownership may therefore be unavailable for some sockets.
+    Does not automatically request root privileges. Ownership
+    information may be unavailable for some sockets.
     """
     try:
         result = subprocess.run(
@@ -128,7 +135,7 @@ def discover_tcp_services():
             capture_output=True,
             text=True,
             timeout=5,
-            check=True
+            check=True,
         )
 
         return parse_tcp_services(result.stdout)
@@ -136,6 +143,6 @@ def discover_tcp_services():
     except (
         subprocess.TimeoutExpired,
         subprocess.CalledProcessError,
-        OSError
+        OSError,
     ):
         return []
