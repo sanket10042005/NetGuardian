@@ -6,8 +6,10 @@ from config import MONITORING_INTERVAL, TOP_PROCESS_LIMIT
 
 from health import check_health, get_overall_health
 
-from discovery.services import discover_tcp_services
-
+from discovery.services import (
+    discover_tcp_services,
+    discover_udp_sockets,
+)
 from port_monitor import check_port
 
 from process_monitor import (
@@ -901,18 +903,25 @@ def collect_and_display(
     )
 
     # TCP service discovery
-    services = discover_tcp_services()
+    tcp_services = discover_tcp_services()
 
+    # UDP service discovery
+    udp_services = discover_udp_sockets()
+
+    # Combine discovered TCP and UDP services
+    services = tcp_services + udp_services
+
+    # Display all discovered services
     display_service_discovery(
         services
     )
 
-    # TCP port diagnostics
+    # TCP port diagnostics must only test TCP services
     display_port_diagnostic(
-        services
+        tcp_services
     )
 
-    # Firewall and service security assessment
+    # Assess security for both TCP and UDP services
     display_security_diagnostic(
         services
     )

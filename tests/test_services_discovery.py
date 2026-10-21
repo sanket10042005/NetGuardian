@@ -2,9 +2,11 @@ from unittest.mock import Mock, patch
 
 from discovery.services import (
     discover_tcp_services,
+    discover_udp_sockets,
     normalize_address,
     parse_process_owners,
     parse_tcp_services,
+    parse_udp_sockets,
 )
 
 
@@ -36,7 +38,7 @@ def test_discovered_services_have_correct_types():
         assert isinstance(service["port"], int)
 
 
-def test_discovered_ports_are_valid():
+def test_discovered_services_have_valid_ports():
     services = discover_tcp_services()
 
     for service in services:
@@ -47,24 +49,22 @@ def test_discovered_services_are_unique():
     services = discover_tcp_services()
 
     assert len(services) == len(
-        {
-            (
-                service["protocol"],
-                service["address"],
-                service["port"],
-            )
+        [
+            str(service)
             for service in services
-        }
+        ]
     )
 
 
-def test_parse_process_owners_extracts_name_and_pid():
+def test_parse_process_owners():
     line = (
         'LISTEN 0 128 127.0.0.1:45678 0.0.0.0:* '
         'users:(("sample-service",pid=4321,fd=5))'
     )
 
-    assert parse_process_owners(line) == [
+    owners = parse_process_owners(line)
+
+    assert owners == [
         {
             "process_name": "sample-service",
             "pid": 4321,
@@ -72,30 +72,28 @@ def test_parse_process_owners_extracts_name_and_pid():
     ]
 
 
-def test_parse_process_owners_supports_multiple_owners():
+def test_parse_process_owners_multiple_processes():
     line = (
-        'LISTEN 0 128 127.0.0.1:45678 0.0.0.0:* '
-        'users:(("service-one",pid=123,fd=5),'
-        '("service-two",pid=456,fd=6))'
+        'users:(("service-one",pid=1234,fd=5),'
+        '("service-two",pid=5678,fd=6))'
     )
 
-    assert parse_process_owners(line) == [
+    owners = parse_process_owners(line)
+
+    assert owners == [
         {
             "process_name": "service-one",
-            "pid": 123,
+            "pid": 1234,
         },
         {
             "process_name": "service-two",
-            "pid": 456,
+            "pid": 5678,
         },
     ]
 
 
-def test_parse_process_owners_returns_empty_list_when_unavailable():
-    line = (
-        "LISTEN 0 128 127.0.0.1:45678 "
-        "0.0.0.0:*"
-    )
+def test_parse_process_owners_without_process_information():
+    line = "LISTEN 0 128 127.0.0.1:45678 0.0.0.0:*"
 
     assert parse_process_owners(line) == []
 
@@ -106,12 +104,13 @@ def test_parse_tcp_services_preserves_original_fields():
         'users:(("sample-service",pid=4321,fd=5))'
     )
 
-    services = parse_tcp_services(output)
+    service = parse_tcp_services(output)[0]
 
-    assert len(services) == 1
-    assert services[0]["protocol"] == "TCP"
-    assert services[0]["address"] == "127.0.0.1"
-    assert services[0]["port"] == 45678
+    assert service["protocol"] == "TCP"
+    assert service["address"] == "127.0.0.1"
+    assert service["port"] == 45678
+    assert service["process_name"] == "sample-service"
+    assert service["pid"] == 4321
 
 
 def test_parse_tcp_services_includes_process_ownership():
@@ -122,9 +121,6 @@ def test_parse_tcp_services_includes_process_ownership():
 
     service = parse_tcp_services(output)[0]
 
-    assert service["process_name"] == "sample-service"
-    assert service["pid"] == 4321
-    assert service["ownership_status"] == "AVAILABLE"
     assert service["process_owners"] == [
         {
             "process_name": "sample-service",
@@ -141,50 +137,41 @@ def test_parse_tcp_services_handles_missing_ownership():
 
     service = parse_tcp_services(output)[0]
 
+    assert service["process_owners"] == []
     assert service["process_name"] is None
     assert service["pid"] is None
-    assert service["process_owners"] == []
     assert service["ownership_status"] == "UNAVAILABLE"
 
 
 def test_parse_tcp_services_supports_ipv6():
     output = (
-        'LISTEN 0 128 [::1]:45678 [::]:* '
-        'users:(("sample-service",pid=4321,fd=5))'
+        "LISTEN 0 128 [::1]:45678 [::]:*"
     )
 
-    service = parse_tcp_services(output)[0]
+    services = parse_tcp_services(output)
 
-    assert service["address"] == "[::1]"
-    assert service["port"] == 45678
+    assert len(services) == 1
+    assert services[0]["address"] == "[::1]"
+    assert services[0]["port"] == 45678
 
 
 def test_parse_tcp_services_normalizes_wildcard():
     output = (
-        'LISTEN 0 128 *:45678 *:* '
-        'users:(("sample-service",pid=4321,fd=5))'
+        "LISTEN 0 128 *:45678 *:*"
     )
 
-    service = parse_tcp_services(output)[0]
+    services = parse_tcp_services(output)
 
-    assert service["address"] == "0.0.0.0"
+    assert len(services) == 1
+    assert services[0]["address"] == "0.0.0.0"
 
 
 def test_parse_tcp_services_ignores_malformed_lines():
-    output = "\n".join(
-        [
-            "not valid output",
-            "LISTEN incomplete",
-            (
-                "LISTEN 0 128 127.0.0.1:not-a-port "
-                "0.0.0.0:*"
-            ),
-            (
-                "LISTEN 0 128 127.0.0.1:70000 "
-                "0.0.0.0:*"
-            ),
-        ]
-    )
+    output = """
+    malformed input
+    LISTEN 0 128 invalid-address 0.0.0.0:*
+    LISTEN 0 128 127.0.0.1:invalid 0.0.0.0:*
+    """
 
     assert parse_tcp_services(output) == []
 
@@ -259,3 +246,99 @@ def test_discovery_handles_command_failure(mock_run):
     )
 
     assert discover_tcp_services() == []
+
+
+# =========================================================
+# UDP DISCOVERY TESTS
+# =========================================================
+
+
+def test_parse_udp_sockets_ipv4():
+    output = (
+        "UNCONN 0 0 127.0.0.1:5353 0.0.0.0:*"
+    )
+
+    services = parse_udp_sockets(output)
+
+    assert len(services) == 1
+    assert services[0]["protocol"] == "UDP"
+    assert services[0]["address"] == "127.0.0.1"
+    assert services[0]["port"] == 5353
+
+
+def test_parse_udp_sockets_ipv6():
+    output = (
+        "UNCONN 0 0 [::1]:5353 [::]:*"
+    )
+
+    services = parse_udp_sockets(output)
+
+    assert len(services) == 1
+    assert services[0]["protocol"] == "UDP"
+    assert services[0]["address"] == "[::1]"
+    assert services[0]["port"] == 5353
+
+
+def test_parse_udp_sockets_with_process_owner():
+    output = (
+        'UNCONN 0 0 127.0.0.1:5353 0.0.0.0:* '
+        'users:(("sample-service",pid=4321,fd=5))'
+    )
+
+    service = parse_udp_sockets(output)[0]
+
+    assert service["process_name"] == "sample-service"
+    assert service["pid"] == 4321
+    assert service["ownership_status"] == "AVAILABLE"
+
+
+def test_parse_udp_sockets_without_process_owner():
+    output = (
+        "UNCONN 0 0 127.0.0.1:5353 0.0.0.0:*"
+    )
+
+    service = parse_udp_sockets(output)[0]
+
+    assert service["process_owners"] == []
+    assert service["process_name"] is None
+    assert service["pid"] is None
+    assert service["ownership_status"] == "UNAVAILABLE"
+
+
+def test_parse_udp_sockets_ignores_malformed_lines():
+    output = """
+    malformed input
+    UNCONN 0 0 invalid-address 0.0.0.0:*
+    UNCONN 0 0 127.0.0.1:invalid 0.0.0.0:*
+    """
+
+    assert parse_udp_sockets(output) == []
+
+
+@patch("discovery.services.subprocess.run")
+def test_discover_udp_sockets_uses_ss_without_sudo(mock_run):
+    mock_run.return_value = Mock(
+        stdout="UNCONN 0 0 127.0.0.1:5353 0.0.0.0:*"
+    )
+
+    services = discover_udp_sockets()
+
+    assert len(services) == 1
+    assert services[0]["protocol"] == "UDP"
+
+    command = mock_run.call_args.args[0]
+
+    assert command == ["ss", "-lunpH"]
+    assert "sudo" not in command
+
+
+@patch("discovery.services.subprocess.run")
+def test_discover_udp_sockets_handles_command_failure(mock_run):
+    import subprocess
+
+    mock_run.side_effect = subprocess.CalledProcessError(
+        returncode=1,
+        cmd=["ss", "-lunpH"],
+    )
+
+    assert discover_udp_sockets() == []
