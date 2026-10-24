@@ -2,7 +2,6 @@ def assess_service_security(service_finding, firewall_status):
     address = service_finding["address"]
     port = service_finding["port"]
     protocol = service_finding["protocol"]
-
     exposure = service_finding["exposure"]
 
     assessment = {
@@ -12,68 +11,66 @@ def assess_service_security(service_finding, firewall_status):
         "exposure": exposure,
         "firewall_status": firewall_status,
         "severity": "INFO",
-        "message": ""
+        "message": "",
     }
 
     if exposure == "NETWORK":
-
-        if firewall_status in (
-            "INACTIVE",
-            "NO_RULES"
-        ):
+        if firewall_status in ("INACTIVE", "NO_RULES"):
             assessment["severity"] = "HIGH"
             assessment["message"] = (
-                "Service is listening on a network-wide "
-                "address while no active firewall protection "
-                "was detected."
+                "Service is listening on a network-wide address "
+                "while no active firewall protection was detected."
+            )
+
+        elif firewall_status == "RULES_PRESENT":
+            assessment["severity"] = "REVIEW"
+            assessment["message"] = (
+                "Firewall rules were detected, but their effective "
+                "protection for this service has not been verified."
             )
 
         elif firewall_status == "ACCESS_DENIED":
             assessment["severity"] = "REVIEW"
             assessment["message"] = (
-                "Service is listening on a network-wide "
-                "address, but firewall inspection requires "
-                "elevated privileges."
+                "Service is listening on a network-wide address, "
+                "but firewall inspection requires elevated privileges."
             )
 
         elif firewall_status == "ERROR":
             assessment["severity"] = "REVIEW"
             assessment["message"] = (
-                "Service is listening on a network-wide "
-                "address, but firewall inspection failed."
+                "Service is listening on a network-wide address, "
+                "but firewall inspection failed."
             )
 
         elif firewall_status == "UNKNOWN":
             assessment["severity"] = "REVIEW"
             assessment["message"] = (
-                "Service is listening on a network-wide "
-                "address, but firewall state is unknown."
+                "Service is listening on a network-wide address, "
+                "but firewall state is unknown."
             )
 
         else:
             assessment["severity"] = "WARNING"
             assessment["message"] = (
-                "Service is listening on a network-wide "
-                "address. Review firewall and access controls."
+                "Service is listening on a network-wide address. "
+                "Review firewall and access controls."
             )
 
     elif exposure == "LOCAL":
-
         assessment["severity"] = "INFO"
         assessment["message"] = (
-            "Service is listening only on localhost."
+            "Service is listening only on a local loopback address."
         )
 
     elif exposure == "SPECIFIC_INTERFACE":
-
         assessment["severity"] = "REVIEW"
         assessment["message"] = (
-            "Service is listening on a specific network "
-            "address. Review whether this exposure is required."
+            "Service is listening on a specific network address. "
+            "Review whether this exposure is required."
         )
 
     else:
-
         assessment["severity"] = "REVIEW"
         assessment["message"] = (
             "Service exposure could not be fully classified."

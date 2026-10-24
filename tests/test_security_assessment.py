@@ -154,3 +154,21 @@ def test_assessment_contains_required_information():
     assert result["firewall_status"] == "INACTIVE"
     assert "severity" in result
     assert "message" in result
+
+
+def test_network_service_with_firewall_rules_present():
+    service_finding = {
+        "protocol": "TCP",
+        "address": "0.0.0.0",
+        "port": 22,
+        "exposure": "NETWORK",
+    }
+
+    result = assess_service_security(
+        service_finding,
+        "RULES_PRESENT",
+    )
+
+    assert result["severity"] == "REVIEW"
+    assert result["firewall_status"] == "RULES_PRESENT"
+    assert "not been verified" in result["message"]
