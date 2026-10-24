@@ -2,26 +2,38 @@ import ipaddress
 
 
 def normalize_address(address):
-    """
-    Normalize an address before security analysis.
-
-    Removes IPv6 zone identifiers and brackets.
-    """
-
     address = address.strip()
 
-    # Remove IPv6 zone identifier.
+    if address == "*":
+        return "0.0.0.0"
+
     if "%" in address:
         address = address.split("%", 1)[0]
 
-    # Remove IPv6 brackets.
-    if (
-        address.startswith("[")
-        and address.endswith("]")
-    ):
+    if address.startswith("[") and address.endswith("]"):
         address = address[1:-1]
 
     return address
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def classify_exposure(address):
